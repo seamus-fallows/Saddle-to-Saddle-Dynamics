@@ -25,11 +25,11 @@ class DeepLinearNetworkConfig:
 
 @dataclass
 class TrainingConfig:
-    batch_size: int
     num_epochs: int
     lr: float
     optimizer_cls: type[optim.Optimizer] = optim.SGD
     criterion_cls: type[nn.Module] = nn.MSELoss
+    batch_size: int | None = None
 
 
 class DeepLinearNetwork(nn.Module):
@@ -67,63 +67,79 @@ class DeepLinearNetworkTrainer:
         self.optimizer = config.optimizer_cls(self.model.parameters(), lr=config.lr)
         self.criterion = config.criterion_cls()
 
-        # Prepare data loaders
-        train_set = TensorDataset(train_set[0], train_set[1])
-        test_set = TensorDataset(test_set[0], test_set[1])
-        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True)
-        self.test_loader = DataLoader(test_set, batch_size=config.batch_size, shuffle=False)
+        # If using full batch training then move data to device else create data loaders
+        if config.batch_size is None:
+            self.train_features = train_set[0].to(device)
+            self.train_targets = train_set[1].to(device)
+            self.test_features = test_set[0].to(device)
+            self.test_targets = test_set[1].to(device)
+        else:
+            train_dataset = TensorDataset(train_set[0], train_set[1])
+            test_dataset = TensorDataset(test_set[0], test_set[1])
+            self.train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
+            self.test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
+
         self.history = {
             "train_loss": [],
             "test_loss": [],
         }
 
+
     def evaluate(self) -> float:
-        """Compute average loss on the test set."""
+        """Compute test loss."""
         self.model.eval()
-        total_loss = 0.0
-        n_examples = 0
 
         with t.no_grad():
-            for x, y in self.test_loader:
-                x, y = x.to(device), y.to(device)
-                y_hat = self.model(x)
-                loss = self.criterion(y_hat, y)
-                batch_size = x.size(0)
-                total_loss += loss.item() * batch_size
-                n_examples += batch_size
+            if self.config.batch_size is None:
+                output = self.model(self.test_features)
+                loss = self.criterion(output, self.test_targets)
+                return loss.item()
+
+            else:
+                total_loss = 0.0
+                n_examples = 0
+                for features, targets in self.test_loader:
+                    features, targets = features.to(device), targets.to(device)
+                    output = self.model(features)
+                    loss = self.criterion(output, targets)
+                    batch_size = features.size(0)
+                    total_loss += loss.item() * batch_size
+                    n_examples += batch_size
 
         self.model.train()
         return total_loss / n_examples
 
-    def training_step(self, x: Tensor, y: Tensor) -> Tensor:
+    def training_step(self, features: Tensor, targets: Tensor) -> Tensor:
         """Perform one gradient update step."""
         self.optimizer.zero_grad()
-        y_hat = self.model(x)
-        loss = self.criterion(y_hat, y)
+        output = self.model(features)
+        loss = self.criterion(output, targets)
         loss.backward()
         self.optimizer.step()
         return loss
 
-    def _train_epoch(self) -> float:
+    def train_epoch(self) -> float:
         """Train for one epoch and return average training loss."""
-        total_loss = 0.0
-        n_examples = 0
-        
-        loader = self.train_loader
-        
-        for x, y in loader:
-            x, y = x.to(device), y.to(device)
-            loss = self.training_step(x, y)
-            batch_size = x.size(0)
-            total_loss += loss.item() * batch_size
-            n_examples += batch_size
+        if self.config.batch_size is None:
+            loss = self.training_step(self.train_features, self.train_targets)
+            return loss.item()
+        else:
+            total_loss = 0.0
+            n_examples = 0
+
+            for features, targets in self.train_loader:
+                features, targets = features.to(device), targets.to(device)
+                loss = self.training_step(features, targets)
+                batch_size = features.size(0)
+                total_loss += loss.item() * batch_size
+                n_examples += batch_size
         
         return total_loss / n_examples
 
     def train(self) -> DeepLinearNetwork:
         """Performs a full training run."""
         for epoch in range(self.config.num_epochs):
-            train_loss = self._train_epoch()
+            train_loss = self.train_epoch()
             test_loss = self.evaluate()
             
             self.history["train_loss"].append(train_loss)
