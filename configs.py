@@ -8,7 +8,6 @@ class DeepLinearNetworkConfig:
     hidden_size: int
     in_size: int
     out_size: int
-    weight_var: float
     bias: bool = False
 
 @dataclass
@@ -17,6 +16,7 @@ class TrainingConfig:
     lr: float
     optimizer_cls: type[optim.Optimizer] = optim.SGD
     criterion_cls: type[nn.Module] = nn.MSELoss
+    evaluate_every: int = 50  # Evaluate test loss every k epochs
     batch_size: int | None = None
 
 
@@ -26,6 +26,7 @@ class TeacherStudentExperimentConfig:
     dln_config: DeepLinearNetworkConfig
     training_config: TrainingConfig
     gamma: float    # Weights are initialised with variance = hidden_size^(-gamma)
-    num_samples: int = 100
+    num_samples: int = 125
     teacher_matrix_scale_factor: float = 10.0
+    test_split: float = 0.2
     base_seed: int = 69

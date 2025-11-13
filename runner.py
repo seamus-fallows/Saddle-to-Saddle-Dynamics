@@ -37,6 +37,7 @@ def run_once(exp: TeacherStudentExperimentConfig, run_id: int):
 
     # Initialize model
     model = DeepLinearNetwork(model_config)
+    model.init_weights(exp.gamma)
     trainer = DeepLinearNetworkTrainer(model, training_config, train_set, test_set, device)
 
     # Train model
@@ -48,3 +49,4 @@ def run_once(exp: TeacherStudentExperimentConfig, run_id: int):
         "history": trainer.history,
     }
     return run_log
+

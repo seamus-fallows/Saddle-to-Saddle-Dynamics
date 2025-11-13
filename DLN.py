@@ -7,9 +7,6 @@ from torch import Tensor, optim
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 from configs import DeepLinearNetworkConfig, TrainingConfig
-device = t.device(
-    "cuda" if t.cuda.is_available() else "cpu"
-)
 
 MAIN = __name__ == "__main__"
 
@@ -27,10 +24,9 @@ class DeepLinearNetwork(nn.Module):
             *[nn.Linear(sizes[i], sizes[i + 1], bias=config.bias) for i in range(len(sizes) - 1)]
         )
 
-        self._init_weights()
 
-    def _init_weights(self):
-        std = self.config.weight_var ** 0.5
+    def init_weights(self, gamma: float) -> None:
+        std = self.config.hidden_size ** (-gamma / 2)
         with t.no_grad():
             for m in self.model:
                 if isinstance(m, nn.Linear):
@@ -42,13 +38,15 @@ class DeepLinearNetwork(nn.Module):
 
 
 class DeepLinearNetworkTrainer:
-    def __init__(self, model: DeepLinearNetwork, config: TrainingConfig, train_set: Tensor, test_set: Tensor):
+    def __init__(self, model: DeepLinearNetwork, config: TrainingConfig, train_set: Tensor, test_set: Tensor, device: t.device):
+        self.device = device
         self.model = model.to(device)
         self.config = config
         self.train_set = train_set
         self.test_set = test_set
         self.optimizer = config.optimizer_cls(self.model.parameters(), lr=config.lr)
         self.criterion = config.criterion_cls()
+        self.evaluate_every = config.evaluate_every
 
         # If using full batch training then move data to device else create data loaders
         if config.batch_size is None:
@@ -83,7 +81,7 @@ class DeepLinearNetworkTrainer:
                 total_loss = 0.0
                 n_examples = 0
                 for features, targets in self.test_loader:
-                    features, targets = features.to(device), targets.to(device)
+                    features, targets = features.to(self.device), targets.to(self.device)
                     output = self.model(features)
                     loss = self.criterion(output, targets)
                     batch_size = features.size(0)
@@ -112,7 +110,7 @@ class DeepLinearNetworkTrainer:
             n_examples = 0
 
             for features, targets in self.train_loader:
-                features, targets = features.to(device), targets.to(device)
+                features, targets = features.to(self.device), targets.to(self.device)
                 loss = self.training_step(features, targets)
                 batch_size = features.size(0)
                 total_loss += loss.item() * batch_size
@@ -124,7 +122,10 @@ class DeepLinearNetworkTrainer:
         """Performs a full training run."""
         for epoch in range(self.config.num_epochs):
             train_loss = self.train_epoch()
-            test_loss = self.evaluate()
+            if (epoch + 1) % self.evaluate_every == 0 or epoch == 0:
+                test_loss = self.evaluate()
+            else:
+                test_loss = None
             
             self.history["train_loss"].append(train_loss)
             self.history["test_loss"].append(test_loss)
