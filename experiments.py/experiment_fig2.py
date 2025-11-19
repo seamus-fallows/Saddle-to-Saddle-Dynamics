@@ -38,9 +38,9 @@ if MAIN:
         dln_config=dln_config,
         training_config=training_config,
         gamma=1.5,
-        num_samples=100,
+        num_samples=125,
         teacher_matrix_scale_factor=10.0,
-        test_split=None,
+        test_split=0.2,
         base_seed=0,
     )
     start_time = time.time()
@@ -54,11 +54,13 @@ if MAIN:
 
 # Retrieve train loss from the history list, now indexed by step
 train_loss = [h["train_loss"] for h in log["history"]]
+test_loss = [h["test_loss"] for h in log["history"]]
 
 # Retrieve steps for the x-axis (steps are logged when evaluation occurs)
 steps = [h["step"] for h in log["history"]]
 
 plt.plot(steps, train_loss, label="Train Loss")
+plt.plot(steps, test_loss, label="Test Loss")
 plt.yscale("log")
 plt.xlabel("Gradient Steps")
 plt.ylabel("Loss")

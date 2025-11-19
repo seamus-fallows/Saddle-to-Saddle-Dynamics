@@ -1,3 +1,5 @@
 - Implement multiple runs over parameters
-- Implement proper logging of runs 
 - Make run_once() (or run() if created) to be more generic and applicable to different experiments 
+- think about how to structure configs for multiple runs/comparative runs
+- Implement comparative runner
+- Implement wandb logging
