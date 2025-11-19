@@ -14,7 +14,7 @@ class ComparativeTrainer:
         trainer_a: DeepLinearNetworkTrainer,
         trainer_b: DeepLinearNetworkTrainer,
         num_steps: int,
-        log_every: int = 10,
+        log_every: int = 1,
     ):
         self.trainer_a = trainer_a
         self.trainer_b = trainer_b
@@ -31,11 +31,7 @@ class ComparativeTrainer:
         # Calculate the L2 norm of the difference vector
         return t.norm(params_a - params_b, p=2).item()
 
-    def run(self) -> List[Dict[str, Any]]:
-        print(
-            f"Starting comparative run of {self.trainer_a.model} and {self.trainer_b.model} for {self.num_steps} steps..."
-        )
-
+    def train(self) -> List[Dict[str, Any]]:
         for step in range(self.num_steps):
             # Step both trainers
             loss_a = self.trainer_a.training_step()

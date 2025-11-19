@@ -1,51 +1,86 @@
 import torch as t
-from DLN import DeepLinearNetwork, DeepLinearNetworkTrainer
-from configs import TeacherStudentExperimentConfig
-from data_utils import (
-    generate_teacher_student_data,
-    train_test_split,
-    get_data_loaders,
-    set_all_seeds,
-)
-from utils import initialize_dln_weights
+import itertools
+import copy
+from typing import List, Dict, Any
+from configs import ExperimentConfig, GridSearchConfig
+from experiment_builder import ExperimentBuilder
+from comparative_trainer import ComparativeTrainer
 
 
-def run_once(exp: TeacherStudentExperimentConfig, run_id: int):
+def expand_grid(grid_config: GridSearchConfig) -> List[ExperimentConfig]:
+    """Expands a GridSearchConfig into a list of ExperimentConfigs."""
+
+    keys, values = zip(*grid_config.param_grid.items())
+    experiments = []
+
+    for combination in itertools.product(*values):
+        new_config = copy.deepcopy(grid_config.base_config)
+
+        # Create name
+        param_str = "_".join(
+            f"{k.split('.')[-1]}={v}" for k, v in zip(keys, combination)
+        )
+        new_config.name = f"{grid_config.name}_{param_str}"
+
+        # Set attributes dynamically
+        for key, value in zip(keys, combination):
+            target = new_config
+            parts = key.split(".")
+            for part in parts[:-1]:
+                target = getattr(target, part)
+            setattr(target, parts[-1], value)
+
+        experiments.append(new_config)
+
+    return experiments
+
+
+def run_sweep(grid_config: GridSearchConfig) -> List[Dict[str, Any]]:
+    configs = expand_grid(grid_config)
+    results = []
     device = t.device("cuda" if t.cuda.is_available() else "cpu")
-    model_config = exp.dln_config
-    training_config = exp.training_config
-    seed = exp.base_seed + run_id
-    hidden_size = model_config.hidden_size
-    weight_std = hidden_size ** (-exp.gamma / 2)
-    set_all_seeds(seed)
 
-    # Generate data from teacher-student model
-    inputs, outputs = generate_teacher_student_data(
-        num_samples=exp.num_samples,
-        in_size=model_config.in_size,
-        scale_factor=exp.teacher_matrix_scale_factor,
+    print(f"--- Running {len(configs)} experiments for sweep: {grid_config.name} ---")
+
+    # If no data params change, generate data once.
+    data_params_varied = any("data_config" in k for k in grid_config.param_grid.keys())
+    shared_data = None
+
+    if not data_params_varied:
+        shared_data = ExperimentBuilder.get_data(grid_config.base_config)
+
+    for i, cfg in enumerate(configs):
+        print(f"[{i + 1}/{len(configs)}] {cfg.name}")
+
+        trainer = ExperimentBuilder.build_trainer(
+            cfg, device, pre_generated_data=shared_data
+        )
+        trainer.train()
+
+        results.append(
+            {"config_name": cfg.name, "config": cfg, "history": trainer.history}
+        )
+
+    return results
+
+
+def run_comparative(
+    config_a: ExperimentConfig, config_b: ExperimentConfig, steps: int
+) -> Dict[str, Any]:
+    device = t.device("cuda" if t.cuda.is_available() else "cpu")
+    print(f"--- Comparative Run: {config_a.name} vs {config_b.name} ---")
+
+    # For comparison, we force shared data based on config_a's settings
+    shared_data = ExperimentBuilder.get_data(config_a)
+
+    trainer_a = ExperimentBuilder.build_trainer(
+        config_a, device, pre_generated_data=shared_data
+    )
+    trainer_b = ExperimentBuilder.build_trainer(
+        config_b, device, pre_generated_data=shared_data
     )
 
-    # Split into train and test sets and create data loaders
-    train_set, test_set = train_test_split(inputs, outputs, exp.test_split)
-    train_set_loader, test_set_loader = get_data_loaders(
-        train_set, test_set, training_config.batch_size
-    )
+    comp_trainer = ComparativeTrainer(trainer_a, trainer_b, num_steps=steps)
+    history = comp_trainer.train()
 
-    # Initialize model
-    model = DeepLinearNetwork(model_config)
-    initialize_dln_weights(model, weight_std)
-
-    trainer = DeepLinearNetworkTrainer(
-        model, training_config, train_set_loader, test_set_loader, device
-    )
-
-    # Train model
-    trainer.train()
-
-    run_log = {
-        "run_id": run_id,
-        "seed": seed,
-        "history": trainer.history,
-    }
-    return run_log
+    return {"config_a": config_a, "config_b": config_b, "history": history}

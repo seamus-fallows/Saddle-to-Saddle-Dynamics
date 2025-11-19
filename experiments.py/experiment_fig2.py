@@ -20,7 +20,11 @@ if MAIN:
     EVAL_FREQUENCY = 1
 
     dln_config = DeepLinearNetworkConfig(
-        num_hidden=3, hidden_size=100, in_size=5, out_size=5, bias=False
+        num_hidden=3,
+        hidden_size=100,
+        in_size=5,
+        out_size=5,
+        bias=False,
     )
 
     # REVISED TrainingConfig

@@ -18,19 +18,15 @@ def generate_teacher_student_data(
     num_samples: int = 100, in_size: int = 5, scale_factor: float = 10.0
 ) -> tuple[Tensor, Tensor]:
     """Generate teacher-student data from a single layer linear teacher model."""
-    # create teacher_matrix = scale_factor * diag(1, 2, ..., in_size)
     teacher_matrix = scale_factor * t.diag(t.arange(1, in_size + 1).float())
-    # Create input and output data
     inputs = t.randn(num_samples, in_size)
     outputs = einops.einsum(teacher_matrix, inputs, "h w, n w -> n h")
-
     return inputs, outputs
 
 
 def train_test_split(
     inputs: Tensor, outputs: Tensor, test_split: float | None
 ) -> tuple[tuple[Tensor, Tensor], tuple[Tensor, Tensor] | None]:
-    """Split data into train and test sets. If test_split is None or 0, return None for test set."""
     if test_split is None or test_split == 0:
         return (inputs, outputs), None
     else:
@@ -46,12 +42,12 @@ def get_data_loaders(
     test_set: tuple[Tensor, Tensor] | None,
     batch_size: int | None,
 ) -> tuple[DataLoader, DataLoader | None]:
-    """Create DataLoaders for train and test sets. If batch_size is None, use full batch. If test_set is None, return None for test_loader."""
     train_inputs, train_outputs = train_set
     train_dataset = TensorDataset(train_inputs, train_outputs)
 
     if batch_size is None:
         batch_size = len(train_dataset)
+
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     if test_set is not None:

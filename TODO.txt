@@ -3,3 +3,5 @@
 - think about how to structure configs for multiple runs/comparative runs
 - Implement comparative runner
 - Implement wandb logging
+- Make sure that in_size for data and model always match
+- Make gamma/weight initialization optional so ExperimentBuilder is more general
