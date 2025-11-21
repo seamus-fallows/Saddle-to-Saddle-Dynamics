@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 from configs import DeepLinearNetworkConfig, TrainingConfig
-from typing import Optional, List, Dict, Any, Iterator
+from typing import Optional, List, Dict, Any, Iterator, Type
 
 
 class DeepLinearNetwork(nn.Module):
@@ -49,6 +49,8 @@ class DeepLinearNetworkTrainer:
         train_loader: DataLoader,
         test_loader: Optional[DataLoader],
         device: t.device,
+        optimizer_cls: Type[t.optim.Optimizer],
+        criterion_cls: Type[nn.Module],
     ):
         self.device = device
         self.model = model.to(device)
@@ -56,8 +58,8 @@ class DeepLinearNetworkTrainer:
         self.train_loader = train_loader
         self.test_loader = test_loader
 
-        self.optimizer = config.optimizer_cls(self.model.parameters(), lr=config.lr)
-        self.criterion = config.criterion_cls()
+        self.optimizer = optimizer_cls(self.model.parameters(), lr=config.lr)
+        self.criterion = criterion_cls()
 
         self.history: List[Dict[str, Any]] = []
         self.step_counter = 0

@@ -1,5 +1,7 @@
 import torch as t
 from typing import Optional, Tuple
+from registries import get_optimizer_cls, get_criterion_cls
+
 from configs import ExperimentConfig
 from DLN import DeepLinearNetwork, DeepLinearNetworkTrainer
 from data_utils import (
@@ -14,30 +16,21 @@ def build_trainer(
     device: t.device,
     pre_generated_data: Optional[Tuple] = None,
 ) -> DeepLinearNetworkTrainer:
-    """
-    Builds a trainer.
-    """
     if pre_generated_data:
         train_set, test_set = pre_generated_data
     else:
         train_set, test_set = create_dataset_from_config(config.data_config)
 
-    # Set Seed specifically for Model Init
     set_all_seeds(config.model_seed)
 
-    # Get Data Loaders
     train_loader, test_loader = get_data_loaders(
         train_set, test_set, config.training_config.batch_size
     )
 
-    # Build Model
-    in_size = config.data_config.in_size
-    out_size = config.data_config.out_size
-    model = DeepLinearNetwork(
-        config.dln_config,
-        in_size=in_size,
-        out_size=out_size,
-    )
+    model = DeepLinearNetwork(config.dln_config)
+
+    opt_cls = get_optimizer_cls(config.training_config.optimizer_name)
+    crit_cls = get_criterion_cls(config.training_config.criterion_name)
 
     return DeepLinearNetworkTrainer(
         model=model,
@@ -45,4 +38,6 @@ def build_trainer(
         train_loader=train_loader,
         test_loader=test_loader,
         device=device,
+        optimizer_cls=opt_cls,
+        criterion_cls=crit_cls,
     )

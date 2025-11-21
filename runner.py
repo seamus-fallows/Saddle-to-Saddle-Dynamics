@@ -4,8 +4,9 @@ import copy
 from typing import List, Dict, Any
 from configs import ExperimentConfig, GridSearchConfig, ComparativeExperimentConfig
 from experiment_builder import build_trainer
-from comparative_trainer import METRIC_REGISTRY, train_comparative
+from comparative_trainer import train_comparative
 from data_utils import create_dataset_from_config
+from registries import get_metric_fn
 
 device = t.device("cuda" if t.cuda.is_available() else "cpu")
 
@@ -84,25 +85,27 @@ def run_single(
     }
 
 
-def run_comparative(
+def run_comparative_experiment(
     config: ComparativeExperimentConfig,
-    steps: int,
     device: t.device = device,
 ) -> Dict[str, Any]:
     print(f"--- Comparative Run: {config.name} ---")
-    print(f"Comparing: {config.config_a.name} vs {config.config_b.name}")
 
-    # For comparison, we force shared data based on config_a's settings
     shared_data = create_dataset_from_config(config.config_a.data_config)
 
     trainer_a = build_trainer(config.config_a, device, pre_generated_data=shared_data)
     trainer_b = build_trainer(config.config_b, device, pre_generated_data=shared_data)
 
+    # Load Metrics via Registry
     metrics = {}
     for name in config.metric_names:
-        if name not in METRIC_REGISTRY:
-            raise ValueError(f"Metric '{name}' not found in registry.")
-        metrics[name] = METRIC_REGISTRY[name]
+        try:
+            metrics[name] = get_metric_fn(name)
+        except ValueError as e:
+            print(f"Warning: {e}")
+            continue
+
+    steps = config.config_a.training_config.max_steps
 
     history = train_comparative(
         trainer_a,

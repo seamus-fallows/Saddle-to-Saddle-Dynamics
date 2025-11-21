@@ -57,7 +57,7 @@ DATASET_GENERATORS = {
 def create_dataset_from_config(
     config: DataConfig,
 ) -> tuple[tuple[Tensor, Tensor], tuple[Tensor, Tensor] | None]:
-    set_all_seeds(config.seed)
+    set_all_seeds(config.data_seed)
 
     if config.name not in DATASET_GENERATORS:
         raise ValueError(f"Unknown dataset name: {config.name}")

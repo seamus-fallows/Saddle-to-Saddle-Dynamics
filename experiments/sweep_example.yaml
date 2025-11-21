@@ -1,0 +1,6 @@
+name: "sweep_gamma_seed"
+defaults_path: "base.yaml"
+
+param_grid:
+  dln_config.gamma: [1.2, 1.5]
+  model_seed: [42, 43]
