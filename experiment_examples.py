@@ -33,7 +33,7 @@ if MAIN:
         in_size=5,
         test_split=0.2,
         scale_factor=10.0,
-        seed=42,
+        data_seed=42,
     )
 
     base_exp = ExperimentConfig(

@@ -29,8 +29,9 @@ class DataConfig:
     name: str = ""
     num_samples: int
     in_size: int
+    out_size: int
     test_split: float | None
-    seed: int
+    data_seed: int
 
 
 @dataclass
@@ -67,3 +68,17 @@ class GridSearchConfig:
     name: str
     base_config: ExperimentConfig
     param_grid: Dict[str, List[Any]]
+
+
+@dataclass
+class ComparativeExperimentConfig:
+    """
+    Defines a comparative experiment between two configurations.
+    """
+
+    name: str
+    config_a: ExperimentConfig
+    config_b: ExperimentConfig
+    max_steps: int
+    # List of keys matching the METRIC_REGISTRY
+    metric_names: List[str]

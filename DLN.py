@@ -7,7 +7,10 @@ from typing import Optional, List, Dict, Any, Iterator
 
 
 class DeepLinearNetwork(nn.Module):
-    def __init__(self, config: DeepLinearNetworkConfig):
+    def __init__(
+        self,
+        config: DeepLinearNetworkConfig,
+    ):
         super().__init__()
 
         self.config = config

@@ -30,7 +30,14 @@ def build_trainer(
         train_set, test_set, config.training_config.batch_size
     )
 
-    model = DeepLinearNetwork(config.dln_config)
+    # Build Model
+    in_size = config.data_config.in_size
+    out_size = config.data_config.out_size
+    model = DeepLinearNetwork(
+        config.dln_config,
+        in_size=in_size,
+        out_size=out_size,
+    )
 
     return DeepLinearNetworkTrainer(
         model=model,
