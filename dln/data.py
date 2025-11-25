@@ -96,6 +96,7 @@ def get_data_loaders(
     train_set: tuple[Tensor, Tensor],
     test_set: tuple[Tensor, Tensor] | None,
     batch_size: int | None,
+    seed: int | None = None,
 ) -> tuple[DataLoader, DataLoader | None]:
     train_inputs, train_outputs = train_set
     train_dataset = TensorDataset(train_inputs, train_outputs)
@@ -103,7 +104,14 @@ def get_data_loaders(
     if batch_size is None:
         batch_size = len(train_dataset)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    generator = t.Generator().manual_seed(seed) if seed is not None else None
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        generator=generator,
+    )
 
     if test_set is not None:
         test_inputs, test_outputs = test_set

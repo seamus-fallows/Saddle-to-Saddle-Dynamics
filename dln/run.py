@@ -26,6 +26,7 @@ def run_experiment(cfg: DictConfig) -> Path:
         train_set,
         test_set,
         batch_size=cfg.training.batch_size,
+        seed=cfg.data.data_seed,
     )
 
     # Seed model

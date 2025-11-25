@@ -26,10 +26,16 @@ def run_comparative_experiment(cfg: DictConfig) -> Path:
 
     # Separate data loaders (possibly different batch sizes)
     train_loader_a, test_loader_a = get_data_loaders(
-        train_set, test_set, batch_size=cfg.training_a.batch_size
+        train_set,
+        test_set,
+        batch_size=cfg.training_a.batch_size,
+        seed=cfg.data.data_seed,
     )
     train_loader_b, test_loader_b = get_data_loaders(
-        train_set, test_set, batch_size=cfg.training_b.batch_size
+        train_set,
+        test_set,
+        batch_size=cfg.training_b.batch_size,
+        seed=cfg.data.data_seed,
     )
 
     # Model A
