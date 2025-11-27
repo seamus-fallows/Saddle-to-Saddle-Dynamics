@@ -81,5 +81,6 @@ data:
 
 max_steps: 2000
 evaluate_every: 1
-metrics:
+model_metrics: []        
+comparative_metrics:        
   - "param_distance"

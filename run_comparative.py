@@ -54,9 +54,12 @@ def run_comparative_experiment(cfg: DictConfig, output_dir: Path | None = None) 
         trainer_b,
         max_steps=cfg.max_steps,
         evaluate_every=cfg.evaluate_every,
-        metrics=cfg.metrics,
     )
-    history = comparative_trainer.train()
+
+    history = comparative_trainer.train(
+        model_metrics=cfg.model_metrics,
+        comparative_metrics=cfg.comparative_metrics,
+    )
 
     # Save history
     history_path = output_dir / "history.jsonl"

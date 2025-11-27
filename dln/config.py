@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Literal, Dict, Any, List
+from typing import Literal, Any
 
 
 @dataclass
@@ -18,7 +18,7 @@ class DataConfig:
     num_samples: int
     test_split: float | None
     data_seed: int
-    params: Dict[str, Any] | None  # Dictionary for dataset-specific parameters.
+    params: dict[str, Any] | None  # Dictionary for dataset-specific parameters.
 
 
 @dataclass
@@ -28,7 +28,7 @@ class ModelTrainingConfig:
     lr: float
     batch_size: int
     optimizer: str
-    optimizer_params: Dict[str, Any] | None
+    optimizer_params: dict[str, Any] | None
     criterion: str
     model_seed: int
 
@@ -52,6 +52,7 @@ class ExperimentConfig:
     model: ModelConfig
     data: DataConfig
     training: TrainingConfig
+    metrics: list[str] | None = None
 
 
 @dataclass
@@ -64,5 +65,6 @@ class ComparativeExperimentConfig:
     training_b: ModelTrainingConfig
     max_steps: int
     evaluate_every: int
-    metrics: List[str] = field(default_factory=lambda: ["param_distance"])
-    shared: Dict[str, Any] = field(default_factory=dict)
+    model_metrics: list[str] = field(default_factory=list)
+    comparative_metrics: list[str] = field(default_factory=list)
+    shared: dict[str, Any] = field(default_factory=dict)

@@ -5,6 +5,7 @@ import torch as t
 from .config import TrainingConfig
 from .model import DeepLinearNetwork
 from .utils import get_criterion_cls, get_optimizer_cls
+from .metrics import compute_model_metrics
 
 
 def run_training_loop(
@@ -72,12 +73,15 @@ class Trainer:
 
         self.history: list[dict[str, Any]] = []
 
-    def train(self) -> list[dict[str, Any]]:
+    def train(self, metrics: list[str] | None = None) -> list[dict[str, Any]]:
         self.model.train()
 
         def step_fn():
             loss = self.training_step()
-            return {"train_loss": loss}
+            results = {"train_loss": loss}
+            if metrics:
+                results.update(compute_model_metrics(self.model, metrics))
+            return results
 
         def eval_fn():
             test_loss = self.evaluate()

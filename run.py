@@ -33,7 +33,7 @@ def run_experiment(cfg: DictConfig, output_dir: Path | None = None) -> Path:
         device=device,
     )
 
-    history = trainer.train()
+    history = trainer.train(metrics=cfg.metrics)
 
     # Save history
     history_path = output_dir / "history.jsonl"
