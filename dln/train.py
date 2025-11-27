@@ -77,15 +77,10 @@ class Trainer:
         self.model.train()
 
         def step_fn():
-            loss = self.training_step()
-            results = {"train_loss": loss}
-            if metrics:
-                results.update(compute_model_metrics(self.model, metrics))
-            return results
+            return self.training_step(metrics)
 
         def eval_fn():
-            test_loss = self.evaluate()
-            return {"test_loss": test_loss}
+            return {"test_loss": self.evaluate()}
 
         self.history = run_training_loop(
             max_steps=self.config.max_steps,
@@ -95,15 +90,19 @@ class Trainer:
         )
         return self.history
 
-    def training_step(self) -> float:
+    def training_step(self, metrics: list[str] | None = None) -> dict[str, float]:
         inputs, targets = next(self.train_iterator)
         self.optimizer.zero_grad()
         output = self.model(inputs)
         loss = self.criterion(output, targets)
         loss.backward()
-        self.optimizer.step()
 
-        return float(loss.item())
+        results = {"train_loss": loss.item()}
+        if metrics:
+            results.update(compute_model_metrics(self.model, metrics))
+
+        self.optimizer.step()
+        return results
 
     def evaluate(self) -> float | None:
         if self.test_data is None:

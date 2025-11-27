@@ -30,31 +30,11 @@ class ComparativeTrainer:
         self.trainer_b.model.train()
 
         def step_fn() -> Dict[str, float]:
-            loss_a = self.trainer_a.training_step()
-            loss_b = self.trainer_b.training_step()
+            results_a = self.trainer_a.training_step(model_metrics)
+            results_b = self.trainer_b.training_step(model_metrics)
 
-            results = {
-                "train_loss_a": loss_a,
-                "train_loss_b": loss_b,
-            }
-
-            if model_metrics:
-                results.update(
-                    {
-                        f"{k}_a": v
-                        for k, v in compute_model_metrics(
-                            self.trainer_a.model, model_metrics
-                        ).items()
-                    }
-                )
-                results.update(
-                    {
-                        f"{k}_b": v
-                        for k, v in compute_model_metrics(
-                            self.trainer_b.model, model_metrics
-                        ).items()
-                    }
-                )
+            results = {f"{k}_a": v for k, v in results_a.items()}
+            results.update({f"{k}_b": v for k, v in results_b.items()})
 
             if comparative_metrics:
                 results.update(
