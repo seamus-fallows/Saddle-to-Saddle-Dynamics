@@ -1,12 +1,12 @@
 from typing import List, Dict, Any, Callable
 import torch as t
-from .train import Trainer
+from .train import Trainer, run_training_loop
 
 MetricFn = Callable[[Trainer, Trainer], float]
 
 
 def param_distance(trainer_a: Trainer, trainer_b: Trainer) -> float:
-    """Euclidean distance between flattened parameters."""
+    """Euclidean distance between flattened parameters of two models."""
     params_a = t.cat([p.view(-1) for p in trainer_a.model.parameters()])
     params_b = t.cat([p.view(-1) for p in trainer_b.model.parameters()])
     return t.norm(params_a - params_b, p=2).item()
@@ -18,7 +18,9 @@ METRICS: Dict[str, MetricFn] = {
 
 
 class ComparativeTrainer:
-    """Trains two models in lockstep, computing comparative metrics."""
+    """
+    Trains two models in lockstep using the shared training loop.
+    """
 
     def __init__(
         self,
@@ -41,23 +43,36 @@ class ComparativeTrainer:
         }
 
     def train(self) -> List[Dict[str, Any]]:
-        for step in range(self.max_steps):
+        self.trainer_a.model.train()
+        self.trainer_b.model.train()
+
+        def step_fn() -> Dict[str, float]:
             loss_a = self.trainer_a.training_step()
             loss_b = self.trainer_b.training_step()
 
-            if step % self.evaluate_every == 0 or step == self.max_steps - 1:
-                test_loss_a = self.trainer_a.evaluate()
-                test_loss_b = self.trainer_b.evaluate()
-                computed_metrics = self._compute_metrics()
+            return {
+                "train_loss_a": loss_a,
+                "train_loss_b": loss_b,
+            }
 
-                log_entry = {
-                    "step": step + 1,
-                    "train_loss_a": loss_a,
-                    "train_loss_b": loss_b,
-                    "test_loss_a": test_loss_a,
-                    "test_loss_b": test_loss_b,
-                    **computed_metrics,
-                }
-                self.history.append(log_entry)
+        def eval_fn() -> Dict[str, Any]:
+            test_loss_a = self.trainer_a.evaluate()
+            test_loss_b = self.trainer_b.evaluate()
+
+            comp_metrics = self._compute_metrics()
+
+            return {
+                "test_loss_a": test_loss_a,
+                "test_loss_b": test_loss_b,
+                **comp_metrics,
+            }
+
+        # Train
+        self.history = run_training_loop(
+            max_steps=self.max_steps,
+            evaluate_every=self.evaluate_every,
+            step_fn=step_fn,
+            eval_fn=eval_fn,
+        )
 
         return self.history

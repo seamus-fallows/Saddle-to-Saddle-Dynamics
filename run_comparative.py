@@ -3,11 +3,10 @@ from pathlib import Path
 import hydra
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
-from dln.utils import seed_rng, get_device
-from dln.data import create_dataset, get_data_loaders, to_device
-from dln.model import DeepLinearNetwork
-from dln.train import Trainer
+from dln.utils import seed_rng, get_device, to_device
+from dln.data import create_dataset
 from dln.comparative import ComparativeTrainer
+from dln.factory import create_trainer
 
 
 def run_comparative_experiment(cfg: DictConfig, output_dir: Path | None = None) -> Path:
@@ -24,44 +23,40 @@ def run_comparative_experiment(cfg: DictConfig, output_dir: Path | None = None) 
         out_dim=cfg.model_a.out_dim,
     )
 
-    # Preloading should be same for both models so just use training_a' flag
-    if cfg.training_a.preload_data:
-        train_set = to_device(train_set, device)
-        test_set = to_device(test_set, device)
+    # Move data
+    train_inputs, train_targets = to_device(train_set, device)
+    test_data = to_device(test_set, device) if test_set else None
 
-    train_loader_a, test_loader_a = get_data_loaders(
-        train_set,
-        test_set,
-        batch_size=cfg.training_a.batch_size,
-        seed=cfg.data.data_seed,
-    )
-    train_loader_b, test_loader_b = get_data_loaders(
-        train_set,
-        test_set,
-        batch_size=cfg.training_b.batch_size,
-        seed=cfg.data.data_seed,
-    )
+    # Initialize Trainers
 
     # Model A
-    seed_rng(cfg.training_a.model_seed)
-    model_a = DeepLinearNetwork(cfg.model_a)
-    trainer_a = Trainer(model_a, cfg.training_a, train_loader_a, test_loader_a, device)
+    trainer_a = create_trainer(
+        model_cfg=cfg.model_a,
+        training_cfg=cfg.training_a,
+        train_inputs=train_inputs,
+        train_targets=train_targets,
+        test_data=test_data,
+        device=device,
+    )
 
     # Model B
-    seed_rng(cfg.training_b.model_seed)
-    model_b = DeepLinearNetwork(cfg.model_b)
-    trainer_b = Trainer(model_b, cfg.training_b, train_loader_b, test_loader_b, device)
+    trainer_b = create_trainer(
+        model_cfg=cfg.model_b,
+        training_cfg=cfg.training_b,
+        train_inputs=train_inputs,
+        train_targets=train_targets,
+        test_data=test_data,
+        device=device,
+    )
 
-    # Comparative training
-    # Use max_steps and evaluate_every from training_a (or add to ComparativeConfig if preferred)
-    comparative = ComparativeTrainer(
+    comparative_trainer = ComparativeTrainer(
         trainer_a,
         trainer_b,
         max_steps=cfg.max_steps,
         evaluate_every=cfg.evaluate_every,
         metrics=cfg.metrics,
     )
-    history = comparative.train()
+    history = comparative_trainer.train()
 
     # Save history
     history_path = output_dir / "history.jsonl"

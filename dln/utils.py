@@ -1,10 +1,10 @@
 import random
-from typing import Iterator
-
+from typing import Iterator, Type
+from torch import nn
 import numpy as np
 import torch as t
+from torch.optim import Optimizer
 from torch import Tensor
-from torch.utils.data import DataLoader
 
 
 def seed_rng(seed: int) -> None:
@@ -25,7 +25,54 @@ def get_device() -> t.device:
         return t.device("cpu")
 
 
-def infinite_batch_iterator(loader: DataLoader) -> Iterator[tuple[Tensor, Tensor]]:
-    """Yield batches forever, cycling through the DataLoader."""
+def to_device(
+    data: tuple[Tensor, Tensor] | None, device: t.device
+) -> tuple[Tensor, Tensor] | None:
+    if data is None:
+        return None
+    inputs, targets = data
+    return inputs.to(device), targets.to(device)
+
+
+def get_infinite_batches(
+    x: Tensor, y: Tensor, batch_size: int | None
+) -> Iterator[tuple[Tensor, Tensor]]:
+    """
+    Yields batches endlessly.
+    """
+    n_samples = len(x)
+
+    # If batch_size is None (full batch), just yield the whole thing forever
+    if batch_size is None or batch_size >= n_samples:
+        while True:
+            yield x, y
+
+    # Mini-batch logic
     while True:
-        yield from loader
+        # 1. Shuffle indices (start of new epoch)
+        indices = t.randperm(n_samples, device=x.device)
+
+        # 2. Yield chunks
+        for start_idx in range(0, n_samples, batch_size):
+            batch_idx = indices[start_idx : start_idx + batch_size]
+            yield x[batch_idx], y[batch_idx]
+
+
+def get_optimizer_cls(name: str) -> Type[Optimizer]:
+    """Resolve optimizer class from torch.optim by name."""
+    try:
+        return getattr(t.optim, name)
+    except AttributeError as e:
+        raise ValueError(
+            f"Unknown optimizer '{name}' in TrainingConfig.optimizer"
+        ) from e
+
+
+def get_criterion_cls(name: str) -> Type[nn.Module]:
+    """Resolve loss criterion class from torch.nn by name."""
+    try:
+        return getattr(nn, name)
+    except AttributeError as e:
+        raise ValueError(
+            f"Unknown criterion '{name}' in TrainingConfig.criterion"
+        ) from e

@@ -3,10 +3,9 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 from hydra.core.hydra_config import HydraConfig
-from dln.utils import seed_rng, get_device
-from dln.data import create_dataset, get_data_loaders, to_device
-from dln.model import DeepLinearNetwork
-from dln.train import Trainer
+from dln.utils import seed_rng, get_device, to_device
+from dln.data import create_dataset
+from dln.factory import create_trainer
 
 
 def run_experiment(cfg: DictConfig, output_dir: Path | None = None) -> Path:
@@ -17,31 +16,20 @@ def run_experiment(cfg: DictConfig, output_dir: Path | None = None) -> Path:
     # Data generation
     seed_rng(cfg.data.data_seed)
     train_set, test_set = create_dataset(
-        cfg.data,
-        in_dim=cfg.model.in_dim,
-        out_dim=cfg.model.out_dim,
+        cfg.data, in_dim=cfg.model.in_dim, out_dim=cfg.model.out_dim
     )
 
-    # Move data if requested
-    if cfg.training.preload_data:
-        train_set = to_device(train_set, device)
-        test_set = to_device(test_set, device)
+    # Move data to device
+    train_inputs, train_targets = to_device(train_set, device)
+    test_data = to_device(test_set, device) if test_set else None
 
-    train_loader, test_loader = get_data_loaders(
-        train_set,
-        test_set,
-        batch_size=cfg.training.batch_size,
-        seed=cfg.data.data_seed,
-    )
-
-    # Model initialization
-    seed_rng(cfg.training.model_seed)
-    model = DeepLinearNetwork(cfg.model)
-    trainer = Trainer(
-        model=model,
-        config=cfg.training,
-        train_loader=train_loader,
-        test_loader=test_loader,
+    # Model & Trainer initialization
+    trainer = create_trainer(
+        model_cfg=cfg.model,
+        training_cfg=cfg.training,
+        train_inputs=train_inputs,
+        train_targets=train_targets,
+        test_data=test_data,
         device=device,
     )
 

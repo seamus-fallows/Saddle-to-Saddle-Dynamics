@@ -24,7 +24,6 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig
 
 # Import your actual training functions
-# Note: Ensure these functions accept 'output_dir' as an argument!
 from run import run_experiment
 from run_comparative import run_comparative_experiment
 
@@ -145,8 +144,8 @@ cfg = get_config(
     "configs/single",
     "diagonal_teacher",
     overrides=[
-        "training.lr=0.001",  # Higher learning rate
-        "model.hidden_size=50",  # Wider layers
+        "training.lr=0.001",
+        "model.hidden_size=50",
     ],
 )
 
@@ -173,8 +172,10 @@ cfg = get_config(
     "configs/single",
     "diagonal_teacher",
     overrides=[
-        "training.lr=0.001",  # Higher learning rate
-        "model.hidden_size=50",  # Wider layers
+        "training.lr=0.001",
+        "model.hidden_size=100",  # Wider layers
+        "data.num_samples=1000",
+        "training.batch_size=10",
     ],
 )
 
@@ -192,7 +193,7 @@ plot_history(history, title="Example 2: LR=0.01, Width=50")
 # Instead of 'multirun', we just loop in Python. It's simpler and more flexible.
 
 # %%
-learning_rates = [0.0001, 0.001, 0.01]
+learning_rates = [0.0005, 0.001, 0.002]
 results = {}
 
 for lr in learning_rates:
@@ -223,9 +224,11 @@ cfg = get_config(
     "configs/comparative",
     "diagonal_teacher",
     overrides=[
-        "max_steps=3000",
-        "shared.training.lr=0.0005",  # Updates both models
-        "training_b.batch_size=10",  # Model B uses mini-batches, A uses full-batch (default)
+        # "max_steps=3000",
+        # "shared.training.lr=0.001",  # Updates both models
+        # "training_b.batch_size=10",  # Model B uses mini-batches, A uses full-batch (default)
+        # "shared.model.hidden_size=100",  # Wider layers
+        # "data.num_samples=1000",
     ],
 )
 

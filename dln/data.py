@@ -1,19 +1,8 @@
 from typing import Dict, Any
 import torch as t
 from torch import Tensor
-from torch.utils.data import DataLoader, TensorDataset
 import einops
-
 from .config import DataConfig
-
-
-def to_device(
-    data: tuple[Tensor, Tensor] | None, device: t.device
-) -> tuple[Tensor, Tensor] | None:
-    if data is None:
-        return None
-    inputs, targets = data
-    return inputs.to(device), targets.to(device)
 
 
 def generate_diagonal_teacher(
@@ -32,8 +21,8 @@ def generate_diagonal_teacher(
 
     teacher_matrix = scale * t.diag(t.arange(1, in_dim + 1).float())
     inputs = t.randn(cfg.num_samples, in_dim)
-    outputs = einops.einsum(teacher_matrix, inputs, "h w, n w -> n h")
-    return inputs, outputs
+    targets = einops.einsum(teacher_matrix, inputs, "h w, n w -> n h")
+    return inputs, targets
 
 
 def generate_random_teacher_data(
@@ -57,8 +46,8 @@ def generate_random_teacher_data(
         size=(in_dim, in_dim),
     )
     inputs = t.randn(cfg.num_samples, in_dim)
-    outputs = einops.einsum(teacher_matrix, inputs, "h w, n w -> n h")
-    return inputs, outputs
+    targets = einops.einsum(teacher_matrix, inputs, "h w, n w -> n h")
+    return inputs, targets
 
 
 # Mapping from dataset type -> generator function.
@@ -71,16 +60,16 @@ _DATASET_GENERATORS: Dict[str, Any] = {
 
 def train_test_split(
     inputs: Tensor,
-    outputs: Tensor,
+    targets: Tensor,
     test_split: float | None,
 ) -> tuple[tuple[Tensor, Tensor], tuple[Tensor, Tensor] | None]:
     if test_split is None or test_split == 0:
-        return (inputs, outputs), None
+        return (inputs, targets), None
 
     num_samples = inputs.shape[0]
     n_train = int((1 - test_split) * num_samples)
-    train_set = (inputs[:n_train], outputs[:n_train])
-    test_set = (inputs[n_train:], outputs[n_train:])
+    train_set = (inputs[:n_train], targets[:n_train])
+    test_set = (inputs[n_train:], targets[n_train:])
     return train_set, test_set
 
 
@@ -93,42 +82,6 @@ def create_dataset(
         raise ValueError(f"Unknown dataset type: {cfg.type!r}")
 
     generator = _DATASET_GENERATORS[cfg.type]
-    inputs, outputs = generator(cfg, in_dim=in_dim, out_dim=out_dim)
-    train_set, test_set = train_test_split(inputs, outputs, cfg.test_split)
+    inputs, targets = generator(cfg, in_dim=in_dim, out_dim=out_dim)
+    train_set, test_set = train_test_split(inputs, targets, cfg.test_split)
     return train_set, test_set
-
-
-# DataLoaders
-
-
-def get_data_loaders(
-    train_set: tuple[Tensor, Tensor],
-    test_set: tuple[Tensor, Tensor] | None,
-    batch_size: int | None,
-    seed: int | None = None,
-) -> tuple[DataLoader, DataLoader | None]:
-    train_inputs, train_outputs = train_set
-    train_dataset = TensorDataset(train_inputs, train_outputs)
-
-    if batch_size is None:
-        batch_size = len(train_dataset)
-
-    generator = t.Generator().manual_seed(seed) if seed is not None else None
-
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        generator=generator,
-    )
-
-    if test_set is not None:
-        test_inputs, test_outputs = test_set
-        test_dataset = TensorDataset(test_inputs, test_outputs)
-        test_loader = DataLoader(
-            test_dataset, batch_size=len(test_dataset), shuffle=False
-        )
-    else:
-        test_loader = None
-
-    return train_loader, test_loader

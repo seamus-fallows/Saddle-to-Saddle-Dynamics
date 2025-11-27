@@ -31,7 +31,6 @@ class ModelTrainingConfig:
     optimizer_params: Dict[str, Any] | None
     criterion: str
     model_seed: int
-    preload_data: bool
 
 
 @dataclass

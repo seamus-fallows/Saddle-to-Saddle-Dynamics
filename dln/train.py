@@ -1,60 +1,67 @@
-from typing import Optional, List, Dict, Any, Type
+from typing import Any, Iterator, Callable
 from tqdm import tqdm
+from torch import Tensor
 import torch as t
-import torch.nn as nn
-from torch.utils.data import DataLoader
-
 from .config import TrainingConfig
 from .model import DeepLinearNetwork
-from .utils import infinite_batch_iterator
+from .utils import get_criterion_cls, get_optimizer_cls
 
 
-def _get_optimizer_cls(name: str) -> Type[t.optim.Optimizer]:
-    """Resolve optimizer class from torch.optim by name."""
-    try:
-        return getattr(t.optim, name)
-    except AttributeError as e:
-        raise ValueError(
-            f"Unknown optimizer '{name}' in TrainingConfig.optimizer"
-        ) from e
+def run_training_loop(
+    max_steps: int,
+    evaluate_every: int,
+    step_fn: Callable[[], dict[str, float]],
+    eval_fn: Callable[[], dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Training loop with tqdm and logging.
 
+    Args:
+        step_fn: Function that performs one gradient step and returns dict of training metrics (e.g. loss).
+        eval_fn: Function that evaluates the model and returns dict of validation metrics.
+    """
+    history = []
+    progress_bar = tqdm(range(max_steps), desc="Training")
 
-def _get_criterion_cls(name: str) -> Type[nn.Module]:
-    """Resolve loss criterion class from torch.nn by name."""
-    try:
-        return getattr(nn, name)
-    except AttributeError as e:
-        raise ValueError(
-            f"Unknown criterion '{name}' in TrainingConfig.criterion"
-        ) from e
+    for step in progress_bar:
+        step_metrics = step_fn()
+
+        # Update progress bar
+        first_key = next(iter(step_metrics))
+        progress_bar.set_postfix({first_key: f"{step_metrics[first_key]:.4f}"})
+
+        if step % evaluate_every == 0 or step == (max_steps - 1):
+            eval_metrics = eval_fn()
+
+            # Combine all metrics
+            record = {"step": step, **step_metrics, **eval_metrics}
+            history.append(record)
+
+    return history
 
 
 class Trainer:
     """
     Minimal trainer for a single DeepLinearNetwork model.
-
-    - Loops for `max_steps` gradient steps.
-    - Logs train and test loss every `evaluate_every` steps.
-    - Keeps a history list of dicts:
-        {"step": int, "train_loss": float, "test_loss": float | None}
     """
 
     def __init__(
         self,
         model: DeepLinearNetwork,
         config: TrainingConfig,
-        train_loader: DataLoader,
-        test_loader: DataLoader | None,
+        train_iterator: Iterator[tuple[Tensor, Tensor]],
+        test_data: tuple[Tensor, Tensor] | None,
         device: t.device,
     ):
         self.device = device
         self.model = model.to(device)
         self.config = config
-        self.train_loader = train_loader
-        self.test_loader = test_loader
 
-        optimizer_cls = _get_optimizer_cls(config.optimizer)
-        criterion_cls = _get_criterion_cls(config.criterion)
+        self.train_iterator = train_iterator
+        self.test_data = test_data
+
+        optimizer_cls = get_optimizer_cls(config.optimizer)
+        criterion_cls = get_criterion_cls(config.criterion)
 
         opt_kwargs = {"lr": config.lr}
         if config.optimizer_params:
@@ -63,74 +70,47 @@ class Trainer:
         self.optimizer = optimizer_cls(self.model.parameters(), **opt_kwargs)
         self.criterion = criterion_cls()
 
-        self.history: List[Dict[str, Any]] = []
-        self.step_counter = 0
+        self.history: list[dict[str, Any]] = []
 
-        # Infinite iterator over training batches
-        self.train_iterator = infinite_batch_iterator(self.train_loader)
-
-    def train(self) -> List[Dict[str, Any]]:
+    def train(self) -> list[dict[str, Any]]:
         self.model.train()
 
-        progress_bar = tqdm(range(self.config.max_steps), desc="Training")
+        def step_fn():
+            loss = self.training_step()
+            return {"train_loss": loss}
 
-        for _ in progress_bar:
-            train_loss = self.training_step()
+        def eval_fn():
+            test_loss = self.evaluate()
+            return {"test_loss": test_loss}
 
-            # Evaluation + logging
-            if self.step_counter % self.config.evaluate_every == 0:
-                test_loss = self.evaluate()
-                self._log(train_loss, test_loss)
-
-                progress_bar.set_postfix({"loss": f"{train_loss:.4f}"})
-
+        self.history = run_training_loop(
+            max_steps=self.config.max_steps,
+            evaluate_every=self.config.evaluate_every,
+            step_fn=step_fn,
+            eval_fn=eval_fn,
+        )
         return self.history
 
     def training_step(self) -> float:
-        # Get data and move to device
-        features, targets = next(self.train_iterator)
-        features = features.to(self.device)
-        targets = targets.to(self.device)
-
-        # Optimization step
+        inputs, targets = next(self.train_iterator)
         self.optimizer.zero_grad()
-        output = self.model(features)
+        output = self.model(inputs)
         loss = self.criterion(output, targets)
         loss.backward()
         self.optimizer.step()
 
-        self.step_counter += 1
         return float(loss.item())
 
-    def evaluate(self) -> Optional[float]:
-        """Compute test loss, or return None if no test set is provided."""
-        if self.test_loader is None:
+    def evaluate(self) -> float | None:
+        if self.test_data is None:
             return None
 
-        self.model.eval()
-        total_loss = 0.0
-        n_examples = 0
+        inputs, targets = self.test_data
 
         with t.inference_mode():
-            for features, targets in self.test_loader:
-                features = features.to(self.device)
-                targets = targets.to(self.device)
-
-                output = self.model(features)
-                loss = self.criterion(output, targets)
-
-                batch_size = features.size(0)
-                total_loss += float(loss.item()) * batch_size
-                n_examples += batch_size
+            self.model.eval()
+            output = self.model(inputs)
+            loss = self.criterion(output, targets)
 
         self.model.train()
-        return total_loss / n_examples
-
-    def _log(self, train_loss: float, test_loss: Optional[float]) -> None:
-        self.history.append(
-            {
-                "step": self.step_counter,
-                "train_loss": float(train_loss),
-                "test_loss": None if test_loss is None else float(test_loss),
-            }
-        )
+        return float(loss.item())

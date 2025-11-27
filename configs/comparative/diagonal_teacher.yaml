@@ -25,7 +25,6 @@ shared:
     optimizer_params: null
     criterion: "MSELoss"
     model_seed: 0
-    preload_data: false
 
 # ==========================================
 # 2. MODEL CONFIGURATION
@@ -60,7 +59,6 @@ training_a:
   optimizer_params: ${shared.training.optimizer_params}
   criterion: ${shared.training.criterion}
   model_seed: ${shared.training.model_seed}
-  preload_data: ${shared.training.preload_data}
 
 training_b:
   lr: ${shared.training.lr}
@@ -69,7 +67,6 @@ training_b:
   optimizer_params: ${shared.training.optimizer_params}
   criterion: ${shared.training.criterion}
   model_seed: ${shared.training.model_seed}
-  preload_data: ${shared.training.preload_data}
 
 # ==========================================
 # 4. DATA & METRICS
