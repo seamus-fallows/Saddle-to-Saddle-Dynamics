@@ -1,17 +1,17 @@
-from typing import Any, Iterator, Callable
+from typing import Any, Callable
 from tqdm import tqdm
 from torch import Tensor
 import torch as t
 from .config import TrainingConfig
 from .model import DeepLinearNetwork
-from .utils import get_criterion_cls, get_optimizer_cls
+from .utils import get_criterion_cls, get_optimizer_cls, get_infinite_batches
 from .metrics import compute_model_metrics
 
 
 def run_training_loop(
     max_steps: int,
     evaluate_every: int,
-    step_fn: Callable[[], dict[str, float]],
+    step_fn: Callable[[int], dict[str, float]],
     eval_fn: Callable[[], dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """
@@ -25,7 +25,7 @@ def run_training_loop(
     progress_bar = tqdm(range(max_steps), desc="Training")
 
     for step in progress_bar:
-        step_metrics = step_fn()
+        step_metrics = step_fn(step)
 
         # Update progress bar
         first_key = next(iter(step_metrics))
@@ -50,7 +50,7 @@ class Trainer:
         self,
         model: DeepLinearNetwork,
         config: TrainingConfig,
-        train_iterator: Iterator[tuple[Tensor, Tensor]],
+        train_data: tuple[Tensor, Tensor],
         test_data: tuple[Tensor, Tensor] | None,
         device: t.device,
     ):
@@ -58,7 +58,9 @@ class Trainer:
         self.model = model.to(device)
         self.config = config
 
-        self.train_iterator = train_iterator
+        self.train_data = train_data
+        self.batch_size = config.batch_size
+        self._create_iterator()
         self.test_data = test_data
 
         optimizer_cls = get_optimizer_cls(config.optimizer)
@@ -73,10 +75,28 @@ class Trainer:
 
         self.history: list[dict[str, Any]] = []
 
-    def train(self, metrics: list[str] | None = None) -> list[dict[str, Any]]:
+    def _create_iterator(self) -> None:
+        """Create or recreate the batch iterator."""
+        self.train_iterator = get_infinite_batches(
+            self.train_data[0], self.train_data[1], self.batch_size
+        )
+
+    def set_batch_size(self, batch_size: int | None) -> None:
+        """Change batch size mid-training. Recreates the data iterator."""
+        self.batch_size = batch_size
+        self._create_iterator()
+
+    def train(
+        self,
+        metrics: list[str] | None = None,
+        switch_step: int | None = None,
+        switch_batch_size: int | None = None,
+    ) -> list[dict[str, Any]]:
         self.model.train()
 
-        def step_fn():
+        def step_fn(step: int):
+            if switch_step is not None and step == switch_step:
+                self.set_batch_size(switch_batch_size)
             return self.training_step(metrics)
 
         def eval_fn():

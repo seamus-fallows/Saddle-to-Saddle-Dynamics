@@ -33,7 +33,11 @@ def run_experiment(cfg: DictConfig, output_dir: Path | None = None) -> Path:
         device=device,
     )
 
-    history = trainer.train(metrics=cfg.metrics)
+    history = trainer.train(
+        metrics=cfg.metrics,
+        switch_step=cfg.switch.step,
+        switch_batch_size=cfg.switch.batch_size,
+    )
 
     # Save history
     history_path = output_dir / "history.jsonl"

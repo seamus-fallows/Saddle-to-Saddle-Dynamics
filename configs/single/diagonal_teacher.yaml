@@ -10,7 +10,7 @@ model:
   in_dim: 5
   out_dim: 5
   num_hidden: 3
-  hidden_size: 10
+  hidden_size: 50
   gamma: 1.5
   bias: false
 
@@ -29,7 +29,11 @@ training:
   optimizer_params: null
   criterion: "MSELoss"
   model_seed: 0
-  max_steps: 2000
+  max_steps: 2500
   evaluate_every: 1
 
+switch:
+  step: null
+  batch_size: null
+  
 metrics: []

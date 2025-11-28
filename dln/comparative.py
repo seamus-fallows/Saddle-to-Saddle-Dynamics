@@ -29,7 +29,7 @@ class ComparativeTrainer:
         self.trainer_a.model.train()
         self.trainer_b.model.train()
 
-        def step_fn() -> Dict[str, float]:
+        def step_fn(step: int) -> Dict[str, float]:
             results_a = self.trainer_a.training_step(model_metrics)
             results_b = self.trainer_b.training_step(model_metrics)
 

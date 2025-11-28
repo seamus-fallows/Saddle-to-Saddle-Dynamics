@@ -110,4 +110,39 @@ results = run_grid_search(
 )
 plot_sweep(results)
 
+# %% Snapping Experiment
+
+# High noise baseline
+history_high = run_single(
+    "snap_high", "diagonal_teacher", overrides=["training.batch_size=10"]
+)
+
+# Low noise baseline
+history_low = run_single(
+    "snap_low", "diagonal_teacher", overrides=["training.batch_size=null"]
+)
+
+# Switch from high to low noise at step 1000
+history_switch = run_single(
+    "snap_switch",
+    "diagonal_teacher",
+    overrides=[
+        "training.batch_size=10",
+        "switch.step=1000",
+        "switch.batch_size=null",
+    ],
+)
+
+# Plot together
+results = {
+    "high_noise": history_high,
+    "low_noise": history_low,
+    "switch": history_switch,
+}
+# %%
+# Without smoothing
+plot_sweep(results, title="Snapping Experiment")
+
+# With smoothing (50-step moving average)
+plot_sweep(results, title="Snapping Experiment", smoothing=20)
 # %%

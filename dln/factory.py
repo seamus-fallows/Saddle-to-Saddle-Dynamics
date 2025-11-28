@@ -2,8 +2,7 @@ from typing import Tuple
 import torch
 from torch import Tensor
 from omegaconf import DictConfig
-
-from dln.utils import seed_rng, get_infinite_batches
+from dln.utils import seed_rng
 from dln.model import DeepLinearNetwork
 from dln.train import Trainer
 
@@ -18,12 +17,7 @@ def create_trainer(
 ) -> Trainer:
     """
     Creates a Model and Trainer for a given configuration leg.
-    Handles iterator creation and seeding.
     """
-    # Create Iterator
-    iterator = get_infinite_batches(
-        train_inputs, train_targets, batch_size=training_cfg.batch_size
-    )
 
     # Seed & Build Model
     seed_rng(training_cfg.model_seed)
@@ -33,7 +27,7 @@ def create_trainer(
     trainer = Trainer(
         model=model,
         config=training_cfg,
-        train_iterator=iterator,
+        train_data=(train_inputs, train_targets),
         test_data=test_data,
         device=device,
     )

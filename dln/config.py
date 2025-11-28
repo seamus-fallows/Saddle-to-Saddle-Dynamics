@@ -47,12 +47,21 @@ class ExperimentMeta:
 
 
 @dataclass
+class SwitchConfig:
+    """Optional batch size switching during training."""
+
+    step: int | None
+    batch_size: int | None
+
+
+@dataclass
 class ExperimentConfig:
     experiment: ExperimentMeta
     model: ModelConfig
     data: DataConfig
     training: TrainingConfig
     metrics: list[str] | None = None
+    switch: SwitchConfig | None = None
 
 
 @dataclass

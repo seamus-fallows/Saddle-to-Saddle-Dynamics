@@ -130,6 +130,15 @@ def run_grid_search(
 # ============================================
 
 
+def smooth(values: List[float], window: int = 50) -> List[float]:
+    """Simple moving average smoothing."""
+    smoothed = []
+    for i in range(len(values)):
+        start = max(0, i - window + 1)
+        smoothed.append(sum(values[start : i + 1]) / (i - start + 1))
+    return smoothed
+
+
 def plot_metrics(
     history: List[Dict[str, Any]],
     metrics: List[str],
@@ -237,14 +246,27 @@ def plot_sweep(
     metric: str = "train_loss",
     title: str = "Sweep Results",
     log_scale: bool = True,
+    smoothing: int | None = None,
 ) -> None:
-    """Plot a single metric across multiple runs."""
+    """Plot a single metric across multiple runs.
+
+    Args:
+        results: Dict mapping labels to history lists.
+        metric: Which metric to plot.
+        title: Plot title.
+        log_scale: Whether to use log scale on y-axis.
+        smoothing: If provided, SMA window size. Shows smoothed curves alongside faded raw data.
+    """
     plt.figure(figsize=(10, 6))
 
     for label, history in results.items():
         steps = [h["step"] for h in history]
         values = [h[metric] for h in history]
-        plt.plot(steps, values, label=label, alpha=0.8)
+
+        if smoothing is not None:
+            plt.plot(steps, smooth(values, smoothing), label=label, linewidth=2)
+        else:
+            plt.plot(steps, values, label=label, alpha=0.8)
 
     if log_scale:
         plt.yscale("log")
